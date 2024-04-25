@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- boilerplate libs -->
+  <script src="https://aframe.io/releases/0.7.0/aframe.min.js"></script>
+  <script src="https://unpkg.com/aframe-animation-component@3.2.5/dist/aframe-animation-component.min.js"></script>
+  <!-- 3dio lib -->
+  <script src="../../../build/3dio.js"></script>
+  <link href="https://fonts.googleapis.com/css?family=Lato:400,700" rel="stylesheet">
+  <style>
+    * {
+      font-family: 'Lato', sans-serif;
+    }
+    #header {
+      font-size: 120px;
+      position: absolute;
+      z-index: 3000;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: #a0f;
+      opacity: 0.5;
+      left: 20px;
+    }
+  </style>
+</head>
+<body>
+<!-- 2D -->
+<div id="header">3d.io<br>archi<br>tectu<br>ralto<br>olkit</div>
+<!-- 3D -->
+<a-scene vr-mode-ui="enabled:false" shadow="type: pcfsoft">
+  <a-entity visible="false"
+            id="sun"
+            light="type:directional; castShadow:true; intensity: 0.8; color:#ffd; shadowMapHeight:1024; shadowMapWidth:1024; shadowCameraTop: 4; shadowCameraLeft: -3.5; shadowCameraRight: 3.5; shadowCameraBottom: -2.5;"
+            position="3 2 -3"></a-entity>
+  <a-entity light="type:hemisphere; groundColor: #cef; color: #fed; intensity:0.8"
+            position="3 0 -3"></a-entity>
+  <a-entity id="spot"
+            light="type:spot; castShadow:true; color: #fa5; angle: 80; intensity: 0.6; penumbra: 0.2; target: #floor; shadowMapHeight:1024; shadowMapWidth:1024"
+            position="0 2.3 0"
+            rotation="0 0 0"></a-entity>
+  <a-entity id="room" shadow="cast:true"
+             animation="property: rotation;
+                        dur: 3000;
+                        to: 0 360 0;
+                        startEvents:start;
+                        restartEvents:turn;
+                        easing: easeInOutQuad">
+    <a-entity id="wall-1" io3d-wall="l:5; w:0.2; h:2.5; material_front:bricks_clean_white; material_back:bricks_clean_white" position="2.5 0 2.5" rotation="0 180 0">
+    </a-entity>
+    <a-entity id="wall-2" io3d-wall="l:5; w:0.2; h:2.5; material_front:bricks_clean_white; material_back:bricks_clean_white" position="2.5 0 -2.5" rotation="0 270 0" io3d-uuid="a4f2c5d3-213e-4d0f-8cf2-96e9261a8131">
+      <a-entity id="door" io3d-door="l:0.8; h:2.2; side: front; doorAngle: 12" position="0.2 0 0"></a-entity>
+      <a-entity id="window" io3d-window="h:1.2; l:1.6; hideGlass:true" position="1.2 1 0"></a-entity>
+    </a-entity>
+    <a-entity id="kitchen" io3d-kitchen="l:4.2; material_kitchen:cabinet_paint_blue" position="2.3 0 2.3" rotation="0 180 0"></a-entity>
+    <a-entity id="floor" io3d-polyfloor="polygon:[[-2.5,2.3],[2.3,2.3],[2.3,-2.5],[-2.5,-2.5]]; hCeiling:2.5; material_top: wood_parquet_oak_stained"></a-entity>
+    <a-entity visible="false" io3d-wall="l:4.8; w:0.2; h:2.5" position="-2.5 0 -2.5"></a-entity>
+    <a-entity visible="false" io3d-wall="l:5; w:0.2; h:2.5" position="-2.5 0 -2.5" rotation="0 270 0"></a-entity>
+    <a-box id="cube" position="0 1 0" depth="0.3" width="0.3" height="0.3" color="#f05"
+           animation="property: rotation;
+                     dur: 5000;
+                     to: 360 360 0;
+                     easing: linear;
+                     loop: true;"></a-box>
+  </a-entity>
+  <!-- Camera -->
+  <a-entity id="camera" camera="fov:0.1; zoom: 0.01; near: 20" position="-25 25 -25" rotation="-34 225 0"  wasd-controls="acceleration:8;easing:5;" look-controls="enabled:false" ></a-entity>
+  <a-sky color="#fd8"></a-sky>
+</a-scene>
+<script>
+  let roomEl = document.querySelector('#room')
+  const bodyEl = document.querySelector('body')
+  const floorEl = document.querySelector('#floor')
+  let kitchenEl = document.querySelector('#kitchen')
+  let doorEl = document.querySelector('#door')
+  const sunEl = document.querySelector('#sun')
+  const spotEl = document.querySelector('#spot')
+  const cubeEl = document.querySelector('#cube')
+  const skyEl = document.querySelector('a-sky')
+  const wallEl = document.querySelector('#wall-2')
+  const header = document.querySelector('#header')
+
+  let addedElements = []
+  let removeKitchen = false
+  let isProcessing = false
+  let wallSetup = []
+
+  // furnishing the room
+  function furnish(label, sceneStructure) {
+    roomEl = document.querySelector('#room')
+    let _addedElements = addedElements
+
+    // remove the existing furniture at half the rotation
+    setTimeout(() => {
+      _addedElements.forEach(el => {
+        el.parentNode.removeChild(el)
+      })
+    }, 1500)
+
+    addedElements = []
+    isProcessing = true
+
+    // get furnishings from home staging ai
+    // https://3d.io/docs/api/1/home-staging-ai.html
+    io3d.staging.getFurnishings(sceneStructure.children, {label})
+      .then(result => {
+        // exchange generic furniture with real products
+        if (result) return io3d.staging.replaceFurniture(result)
+      })
+      .then(result => {
+        isProcessing = false
+        cubeEl.setAttribute('visible', false)
+        // convert scene Structure to A-frame elements for display
+        let elements = io3d.scene.getAframeElementsFromSceneStructure(result)
+        elements.forEach(el => {
+          roomEl.appendChild(el)
+        })
+        addedElements = elements
+      })
+      .catch(console.error)
+  }
+
+  // initial spin
+  setTimeout(() => {
+    let roomType = setRoom()
+    let scene = getSceneStructure()
+    furnish(roomType, scene)
+    roomEl.emit('start')
+  }, 1000)
+
+  // spin after user click
+  bodyEl.addEventListener('click', () => {
+    if (isProcessing) return
+    let roomType = setRoom()
+    let scene = getSceneStructure()
+    furnish(roomType, scene)
+    roomEl.emit('turn')
+  })
+
+  // set room type and lighting
+  function setRoom() {
+    const lights = ['sun', 'spot']
+    const rooms = ['living', 'dining', 'bedroom', 'dining_living', 'homeOffice']
+    let room = pickRnd(rooms)
+    let light = pickRnd(lights)
+
+    if (room !== 'dining') removeKitchen = true
+    else removeKitchen = false
+
+    // wait for half the rotation to change the 3d scene
+    setTimeout(() => {
+      // set processing cube
+      if (isProcessing) cubeEl.setAttribute('visible', true)
+      // set lights
+      if (light === 'spot') {
+        spotEl.setAttribute('visible', true)
+        sunEl.setAttribute('visible', false)
+      } else {
+        spotEl.setAttribute('visible', false)
+        sunEl.setAttribute('visible', true)
+      }
+      // toggle kitchen
+      if (room !== 'dining') kitchenEl.setAttribute('visible', false)
+      else kitchenEl.setAttribute('visible', true)
+
+      // adapt architectural elements
+      setRndAttributes()
+
+    }, 1500)
+    return room
+  }
+
+  // attributes for 'random' room generation
+  const floorAttr = {
+    material_top: [
+      'wood_parquet_oak',
+      'wood_parquet_oak_stained',
+      'wood_parquet_oak_dark',
+      'parquet_heringbone_oak',
+      'black_white_tiles',
+      'tiles-dark-large'
+    ]
+  }
+  const doorAttr = {
+    doorAngle: [15, 60, 110],
+    hinge: ['left', 'right'],
+    doorType: ['singleSwing', 'doubleSwing', 'slidingDoor']
+  }
+  const wallSetups = [
+    [
+      {type: 'window', x: 0.3, l: 2.2, h: 1.4, y: 0.8},
+      {type: 'door', x: 3, l: 0.9, h: 2.2, side: 'front'},
+    ], [
+      {type: 'door', x: 1, l: 0.9, h: 2.2, side: 'front'},
+      {type: 'window', x: 2.5, l: 1.4, h: 1.3, y: 0.8}
+    ], [
+      {type: 'window', x: 0.5, l: 1, h: 2.3, y: 0.1},
+      {type: 'window', x: 1.7, l: 1, h: 2.3, y: 0.1},
+      {type: 'window', x: 2.9, l: 1, h: 2.3, y: 0.1}
+    ]
+  ]
+  const windowAttr = {
+    side: ['front', 'center', 'back'],
+    rowRatios: [[1], [1,2], [1, 1]],
+    columnRatios: [[[1]], [[1], [1, 3]], [[1, 4, 1]], [[1, 1], [1, 1]]]
+  }
+  const wallAttr = {
+    material_front: ['default_plaster_001', 'memphis_pattern', 'bricks_clean_orange', 'zigzag', 'bricks_white', 'concrete_board', 'cabinet_wood_fir_wall']
+  }
+  const kitchenAttr = {
+    wallCabinet: [false, true],
+    highCabinetLeft: [0, 1, 2],
+    cabinetType: ['none', 'style1', 'style2'],
+    material_kitchen: ['cabinet_paint_creme', 'cabinet_paint_grey', 'cabinet_paint_brick', 'cabinet_paint_anthrazit']
+  }
+
+  // get sceneStructure ready for processing, before actually showing it
+  function getSceneStructure() {
+    // scene content
+    let sceneStructure = io3d.scene.getSceneStructureFromAframeElements(roomEl)
+    // pick new wall configuration
+    wallSetup = pickRnd(wallSetups)
+    // apply new wallSetup to wall 2
+    sceneStructure.children = sceneStructure.children.map(c => {
+      if (c.id === 'a4f2c5d3-213e-4d0f-8cf2-96e9261a8131') c.children = wallSetup
+      return c
+    })
+    // remove kitchen for rooms other than dining
+    if (removeKitchen) sceneStructure.children = sceneStructure.children.filter(c => c.type !== 'kitchen')
+    return sceneStructure
+  }
+
+  // adapt 3d scene with random attributes
+  function setRndAttributes () {
+    // update wall children
+    let wallElements = io3d.scene.getAframeElementsFromSceneStructure(wallSetup)
+    while (wallEl.firstChild) {
+      wallEl.removeChild(wallEl.firstChild)
+    }
+    wallElements.forEach(el => {
+      wallEl.appendChild(el)
+    })
+
+    // get new attributes
+    let newFloorAttr = rndAttr(floorAttr)
+    let newDoorAttr = rndAttr(doorAttr)
+    let newWindowAttr = rndAttr(windowAttr)
+    let newWallAttr = rndAttr(wallAttr)
+    newDoorAttr['material_threshold'] = newFloorAttr['material_top']
+
+    // apply attributes
+    floorEl.setAttribute('io3d-polyfloor', newFloorAttr)
+    kitchenEl.setAttribute('io3d-kitchen', rndAttr(kitchenAttr))
+    doorEl = document.querySelector('[io3d-door]')
+    if (doorEl) doorEl.setAttribute('io3d-door', newDoorAttr)
+    let wallEls = document.querySelectorAll('[io3d-wall]')
+    wallEls.forEach(el => el.setAttribute('io3d-wall', newWallAttr))
+    let windowEls = document.querySelectorAll('[io3d-window]')
+    windowEls.forEach(el => el.setAttribute('io3d-window', newWindowAttr))
+
+    // set sky and font
+    let skyHue = Math.floor(Math.random() * 18) * 20
+    let fontHue = skyHue + 180 > 360 ? skyHue + 180 - 360 : skyHue + 180
+    skyEl.setAttribute('color', `hsl(${skyHue}, 50%, 80%)`)
+    header.style.color = `hsl(${fontHue}, 90%, 40%)`
+  }
+
+  function rndAttr(att) {
+    let _att = {}
+    Object.keys(att).forEach(a => {
+      if (a === 'rowRatios' || a === 'columnRatios') {
+        _att[a] = JSON.stringify(pickRnd(att[a]))
+      }
+      else _att[a] = pickRnd(att[a])
+    })
+    return _att
+  }
+
+  function pickRnd(arr) {
+    return arr[Math.floor(Math.random() * arr.length)]
+  }
+</script>
+</body>
+</html>
+
